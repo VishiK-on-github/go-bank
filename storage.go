@@ -85,29 +85,8 @@ func (s *PostgressStore) DeleteAccount(id int) error {
 
 // this method is to transfer money to an account based on its id
 func (s *PostgressStore) UpdateAccount(transfer *TransferRequest) error {
-	currentBalanceQuery := "SELECT * FROM ACCOUNT WHERE id = $1"
-	rows, err := s.db.Query(currentBalanceQuery, transfer.ToAccount)
-
-	if err != nil {
-		return err
-	}
-
-	var currentAmount int64
-
-	for rows.Next() {
-		account, err := scanIntoAccount(rows)
-
-		if err != nil {
-			return err
-		}
-
-		currentAmount = account.Balance
-	}
-
-	finalAmount := currentAmount + transfer.Amount
-
-	updateBalanceQuery := "UPDATE ACCOUNT SET balance = $1 WHERE id = $2"
-	_, err = s.db.Query(updateBalanceQuery, finalAmount, transfer.ToAccount)
+	updateBalanceQuery := "UPDATE ACCOUNT SET balance = balance + $1 WHERE id = $2"
+	_, err := s.db.Query(updateBalanceQuery, transfer.Amount, transfer.ToAccount)
 
 	if err != nil {
 		return err
