@@ -10,7 +10,7 @@ import (
 type Storage interface {
 	CreateAccount(*Account) error
 	DeleteAccount(int) error
-	UpdateAccount(*Account) error
+	UpdateAccount(*TransferRequest) error
 	GetAccountByID(int) (*Account, error)
 	GetAccounts() ([]*Account, error)
 }
@@ -19,6 +19,7 @@ type PostgressStore struct {
 	db *sql.DB
 }
 
+// used to connect to the database with creds and get a valid db object
 func NewPostgressStore() (*PostgressStore, error) {
 	connStr := "user=postgres dbname=postgres password=gobank sslmode=disable"
 	db, err := sql.Open("postgres", connStr)
@@ -41,6 +42,7 @@ func (s *PostgressStore) Init() error {
 	return s.createAccountTable()
 }
 
+// used to create account table in the postgres database
 func (s *PostgressStore) createAccountTable() error {
 	query := `CREATE TABLE IF NOT EXISTS ACCOUNT (
 		id SERIAL PRIMARY KEY,
@@ -54,6 +56,7 @@ func (s *PostgressStore) createAccountTable() error {
 	return err
 }
 
+// takes an account type and stores it into account table
 func (s *PostgressStore) CreateAccount(account *Account) error {
 	query := `INSERT INTO ACCOUNT 
 	(first_name, last_name, number, balance, created_at) 
@@ -73,16 +76,47 @@ func (s *PostgressStore) CreateAccount(account *Account) error {
 	return nil
 }
 
+// takes id of an account and deletes it from db (hard delete)
 func (s *PostgressStore) DeleteAccount(id int) error {
 	query := "DELETE FROM ACCOUNT WHERE ID = $1"
 	_, err := s.db.Query(query, id)
 	return err
 }
 
-func (s *PostgressStore) UpdateAccount(*Account) error {
+// this method is to transfer money to an account based on its id
+func (s *PostgressStore) UpdateAccount(transfer *TransferRequest) error {
+	currentBalanceQuery := "SELECT * FROM ACCOUNT WHERE id = $1"
+	rows, err := s.db.Query(currentBalanceQuery, transfer.ToAccount)
+
+	if err != nil {
+		return err
+	}
+
+	var currentAmount int64
+
+	for rows.Next() {
+		account, err := scanIntoAccount(rows)
+
+		if err != nil {
+			return err
+		}
+
+		currentAmount = account.Balance
+	}
+
+	finalAmount := currentAmount + transfer.Amount
+
+	updateBalanceQuery := "UPDATE ACCOUNT SET balance = $1 WHERE id = $2"
+	_, err = s.db.Query(updateBalanceQuery, finalAmount, transfer.ToAccount)
+
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
+// this method is used to get a user from db using its id
 func (s *PostgressStore) GetAccountByID(id int) (*Account, error) {
 
 	query := "SELECT * FROM ACCOUNT WHERE ID = $1"
@@ -99,6 +133,7 @@ func (s *PostgressStore) GetAccountByID(id int) (*Account, error) {
 	return nil, fmt.Errorf("account with id: %d not found", id)
 }
 
+// this method is used to get all the accounts in postgres
 func (s *PostgressStore) GetAccounts() ([]*Account, error) {
 	query := "SELECT * FROM ACCOUNT"
 
@@ -121,6 +156,7 @@ func (s *PostgressStore) GetAccounts() ([]*Account, error) {
 	return accounts, nil
 }
 
+// utility method to iterate over rows from db
 func scanIntoAccount(rows *sql.Rows) (*Account, error) {
 	account := new(Account)
 	err := rows.Scan(

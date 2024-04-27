@@ -29,6 +29,7 @@ func (s *APIServer) Run() {
 	router.HandleFunc("/account", makeHTTPHandleFunc(s.handleAccount))
 	router.HandleFunc("/account/{id}", makeHTTPHandleFunc(s.handleGetAccountByID))
 	router.HandleFunc("/accounts", makeHTTPHandleFunc(s.handleGetAccounts))
+	router.HandleFunc("/transfer", makeHTTPHandleFunc(s.handleTransfer))
 
 	http.ListenAndServe(s.listenAddr, router)
 }
@@ -104,7 +105,25 @@ func (s *APIServer) handleDeleteAccount(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *APIServer) handleTransfer(w http.ResponseWriter, r *http.Request) error {
-	return nil
+	if r.Method == "POST" {
+		transferRequest := TransferRequest{}
+		if err := json.NewDecoder(r.Body).Decode(&transferRequest); err != nil {
+			return err
+		}
+
+		defer r.Body.Close()
+
+		transfer := NewTransfer(transferRequest.ToAccount, transferRequest.Amount)
+
+		err := s.store.UpdateAccount(transfer)
+
+		if err != nil {
+			return nil
+		}
+
+		return WriteJSON(w, http.StatusOK, map[string]string{"message": "amount tranferred"})
+	}
+	return fmt.Errorf("method not allowed")
 }
 
 func (s *APIServer) handleGetAccounts(w http.ResponseWriter, r *http.Request) error {
