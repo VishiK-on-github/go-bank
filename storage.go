@@ -13,6 +13,7 @@ type Storage interface {
 	UpdateAccount(*TransferRequest) error
 	GetAccountByID(int) (*Account, error)
 	GetAccounts() ([]*Account, error)
+	GetAccountByNumber(int) (*Account, error)
 }
 
 type PostgressStore struct {
@@ -49,6 +50,7 @@ func (s *PostgressStore) createAccountTable() error {
 		first_name varchar(50),
 		last_name varchar(50),
 		number serial,
+		encrypted_password varchar(100),
 		balance serial,
 		created_at timestamp)`
 
@@ -59,13 +61,14 @@ func (s *PostgressStore) createAccountTable() error {
 // takes an account type and stores it into account table
 func (s *PostgressStore) CreateAccount(account *Account) error {
 	query := `INSERT INTO ACCOUNT 
-	(first_name, last_name, number, balance, created_at) 
-	VALUES ($1, $2, $3, $4, $5)`
+	(first_name, last_name, number, encrypted_password, balance, created_at) 
+	VALUES ($1, $2, $3, $4, $5, $6)`
 
 	_, err := s.db.Query(query,
 		account.FirstName,
 		account.LastName,
 		account.Number,
+		account.EncryptedPassword,
 		account.Balance,
 		account.CreatedAt)
 
@@ -135,6 +138,19 @@ func (s *PostgressStore) GetAccounts() ([]*Account, error) {
 	return accounts, nil
 }
 
+func (s *PostgressStore) GetAccountByNumber(number int) (*Account, error) {
+	rows, err := s.db.Query("SELECT * from account where number = $1", number)
+	if err != nil {
+		return nil, err
+	}
+
+	for rows.Next() {
+		return scanIntoAccount(rows)
+	}
+
+	return nil, fmt.Errorf("account with number : %d not found", number)
+}
+
 // utility method to iterate over rows from db
 func scanIntoAccount(rows *sql.Rows) (*Account, error) {
 	account := new(Account)
@@ -143,6 +159,7 @@ func scanIntoAccount(rows *sql.Rows) (*Account, error) {
 		&account.FirstName,
 		&account.LastName,
 		&account.Number,
+		&account.EncryptedPassword,
 		&account.Balance,
 		&account.CreatedAt)
 
