@@ -83,9 +83,7 @@ func (s *APIServer) handleAccount(w http.ResponseWriter, r *http.Request) error 
 func (s *APIServer) handleGetAccountByID(w http.ResponseWriter, r *http.Request) error {
 
 	if r.Method == "GET" {
-		idStr := mux.Vars(r)["id"]
-		id, err := strconv.Atoi(idStr)
-
+		id, err := getID(r)
 		if err != nil {
 			return fmt.Errorf("invalid id given")
 		}
@@ -122,14 +120,6 @@ func (s *APIServer) handleCreateAccount(w http.ResponseWriter, r *http.Request) 
 	if err := s.store.CreateAccount(account); err != nil {
 		return err
 	}
-
-	tokenString, err := createJWT(account)
-
-	if err != nil {
-		return err
-	}
-
-	fmt.Println("JWT token: ", tokenString)
 
 	return WriteJSON(w, http.StatusOK, account)
 }
